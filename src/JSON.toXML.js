@@ -19,7 +19,10 @@ if (typeof (JSON) !== 'object') {
 		};
 	
 	function convertToXhtml(json, parent_tag, indent) {
-		var xml = '', attributes = '', i, key, valid_key, new_indent = indent + settings.indent;
+		var xml = '', attributes = '', i, key, valid_key, sp, new_indent = indent + settings.indent;
+		if (parent_tag === ':xml') {
+			new_indent = '';
+		}
 		if (json instanceof Array) {
 			for (i = 0; i < json.length; i += 1) {
 				xml += convertToXhtml(json[i], parent_tag, new_indent);
@@ -32,33 +35,37 @@ if (typeof (JSON) !== 'object') {
 		for (key in json) {
 			if (json.hasOwnProperty(key)) {
 				valid_key = key.toLowerCase().replace('$', ':');
+				sp = valid_key.indexOf(' ');
+				if (sp > -1) {
+					valid_key = valid_key.substring(0, sp);
+				}
 				if (valid_key[0] === ':') {
-					if (valid_key === ':t' || valid_key.substring(0, 5) === ':text') {
-						xml += settings.newline + new_indent + json[key];
-					} else if (valid_key === ':c' || valid_key.substring(0, 8) === ':comment') {
-						xml += settings.newline + new_indent + '<!-- ' + json[key] + ' -->';
+					if (valid_key === ':t' || valid_key === ':text') {
+						xml += json[key];
+					} else if (valid_key === ':c' || valid_key === ':comment') {
+						xml += '<!-- ' + json[key] + ' -->';
 					} else if (valid_key === ':doctype') {
 						xml += '<!DOCTYPE ' + json[key] + '>';
+						new_indent = '';
 					}
 				} else if (typeof (json[key]) === 'string') {
 					attributes += ' ' + valid_key + '="' + json[key] + '"';
 				} else if (json[key] instanceof Array) {
 					for (i = 0; i < json[key].length; i += 1) {
-						xml += convertToXhtml(json[key][i], valid_key, new_indent);
+						xml += settings.newline + convertToXhtml(json[key][i], valid_key, new_indent) + settings.newline + indent;
 					}
 				} else if (json[key] instanceof Object) {
-					xml += convertToXhtml(json[key], valid_key, new_indent);
+					xml += settings.newline + convertToXhtml(json[key], valid_key, new_indent) + settings.newline + indent;
 				}
 			}
 		}
 		if (parent_tag !== '') {
 			if (settings.checkSingleTags && single_tags.indexOf(parent_tag) > -1) {
-				xml = indent + '<' + parent_tag + attributes + '/>' + settings.newline;
+				xml = indent + '<' + parent_tag + attributes + '/>';
 			} else if (parent_tag === ':xml') {
 				xml = '<?xml' + attributes + ' ?>' + xml;
 			} else {
-				xml = settings.newline + indent + '<' + parent_tag + attributes + '>'
-						+ xml + settings.newline + indent + '</' + parent_tag + '>';
+				xml = indent + '<' + parent_tag + attributes + '>' + xml + '</' + parent_tag + '>';
 			}
 		}
 		return xml;
