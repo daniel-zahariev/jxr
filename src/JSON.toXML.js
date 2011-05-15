@@ -5,7 +5,8 @@
  * @version 0.1.1
  * @author Daniel Zahariev
  */
-if(typeof(JSON) !== 'object'){
+
+if (typeof (JSON) !== 'object') {
 	JSON = {};
 }
 (function ($) {
@@ -31,19 +32,21 @@ if(typeof(JSON) !== 'object'){
 		for (key in json) {
 			if (json.hasOwnProperty(key)) {
 				valid_key = key.toLowerCase().replace('$', ':');
-				if (valid_key === ':t' || valid_key === ':text') {
-					xml += settings.newline + new_indent + json[key];
-				} else if (valid_key === ':c' || valid_key === ':comment') {
-					xml += settings.newline + new_indent + '<!-- ' + json[key] + ' -->';
-				} else if (valid_key === ':doctype') {
-					xml += '<!DOCTYPE ' + json[key] + '>';
+				if (valid_key[0] === ':') {
+					if (valid_key === ':t' || valid_key.substring(0, 5) === ':text') {
+						xml += settings.newline + new_indent + json[key];
+					} else if (valid_key === ':c' || valid_key.substring(0, 8) === ':comment') {
+						xml += settings.newline + new_indent + '<!-- ' + json[key] + ' -->';
+					} else if (valid_key === ':doctype') {
+						xml += '<!DOCTYPE ' + json[key] + '>';
+					}
 				} else if (typeof (json[key]) === 'string') {
 					attributes += ' ' + valid_key + '="' + json[key] + '"';
 				} else if (json[key] instanceof Array) {
 					for (i = 0; i < json[key].length; i += 1) {
 						xml += convertToXhtml(json[key][i], valid_key, new_indent);
 					}
-				} else {
+				} else if (json[key] instanceof Object) {
 					xml += convertToXhtml(json[key], valid_key, new_indent);
 				}
 			}
