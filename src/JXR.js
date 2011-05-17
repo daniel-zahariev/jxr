@@ -1,13 +1,13 @@
 /**
- * A plugin to JSON object for easy converting JSON object (or array of) to XML
+ * JXR is a simple library for JSON data transformation and conversion to XML/XHTML
  * This plugin is released under both MIT & GPL licences.
  * 
- * @version 0.1.1
+ * @version 0.1.2
  * @author Daniel Zahariev
  */
 
-if (typeof (JSON) !== 'object') {
-	JSON = {};
+if (typeof (JXR) !== 'object') {
+	JXR = {};
 }
 (function ($) {
 	var single_tags = ['area', 'base', 'basefont', 'br', 'col', 'frame', 'hr', 'img', 'input', 'link', 'meta', 'param'],
@@ -90,4 +90,4 @@ if (typeof (JSON) !== 'object') {
 		
 		return convertToXhtml(json, (settings.isXML ? ':xml' : ''), '');
 	};
-})(JSON);
+})(JXR);

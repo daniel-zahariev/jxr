@@ -3,18 +3,18 @@
 <head>
 	<meta http-equiv="Content-Type" content="text/html;charset=UTF-8" />
 	<title></title>
-	<script src="../src/JSON.toXML.js" type="text/javascript"></script>
+	<script src="../src/JXR.js" type="text/javascript"></script>
 	<script src="tests.js" type="text/javascript"></script>
 	<script type="text/javascript">
 	window.onload = function(){
 		var i, dom = {}, results = {};
 		for (i in tests) {
-			results[i] = JSON.toXML(tests[i].json, tests[i].options);
+			results[i] = JXR.toXML(tests[i].json, tests[i].options);
 			dom["h4 "+i] = {"$t": (i + " example")};
 			dom["pre "+i] = {"id": i};
 			dom["hr "+i] = {};
 		}
-		document.body.innerHTML = JSON.toXML(dom);
+		document.body.innerHTML = JXR(dom);
 		for (i in results) {
 			document.getElementById(i).innerText = results[i];
 		}
