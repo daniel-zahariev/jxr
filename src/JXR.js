@@ -11,8 +11,8 @@
 
 function JXR() {
 	var singleTags = ['area', 'base', 'basefont', 'br', 'col', 'frame', 'hr', 'img', 'input', 'link', 'meta', 'param'],
-		xr_data = {}, outputSettings = {"newline": "\n", "indent": "  ", "isXML": false, "checkSingleTags": true},
-		$this = this;
+		outputSettings = {"newline": "\n", "indent": "  ", "checkSingleTags": true, "isXML": false, "autoCloseTags": false},
+		xr_data = {}, $this = this;
 	this.getSingleTags = function () {
 		return singleTags;
 	};
@@ -53,11 +53,14 @@ function JXR() {
 			return $this.transform(template, data);
 		},
 		"path": function (value) {
-			var data, i;
+			var data, i, tmp;
 			if (value instanceof Array) {
 				data = [];
 				for ( i = 0; i < value.length; i += 1) {
-					Array.prototype.push.apply(data, JobManager.path(value[i]));
+					tmp = JobManager.path(value[i]);
+					if (tmp !== false) {
+						Array.prototype.push.apply(data, tmp);
+					}
 				}
 			} else if (typeof(value) === 'string') {
 				if (value[0] === '$') {
@@ -84,6 +87,10 @@ function JXR() {
 			}
 			return values.join('');
 		},
+		"default": function (path, def_val) {
+			var val = JobManager.path(path);
+			return (val !== false ? val : def_val);
+		},
 		"if": function (clause, true_tpl, false_tpl) {
 			if (clause instanceof Array && clause.length === 3) {
 				var rule = clause[0], valid = false, t_tpl = {}, f_tpl = {},
@@ -109,6 +116,7 @@ function JXR() {
 					case 'gte': valid = (arg1 >= arg2); break;
 					case 'lt': valid = (arg1 < arg2); break;
 					case 'lte': valid = (arg1 <= arg2); break;
+					case 'exist': valid = ((arg1 !== false) === arg2); break;
 					case 'match':
 						try{
 							valid = arg1.match(arg2);
@@ -122,7 +130,7 @@ function JXR() {
 		},
 		"for": function (path, loop_tpl, else_tpl) {
 			var i, elements = JobManager.path(path), template = false, result = [];
-			if (elements.length > 0) {
+			if (elements !== false && elements.length > 0) {
 				if (typeof(loop_tpl) === 'string' && this.$template.hasOwnProperty(loop_tpl)) {
 					template = this.$template[loop_tpl];
 				} else if (loop_tpl instanceof Object) {
@@ -189,7 +197,7 @@ JXR.prototype.getXML = function () {
 	var json = this.getXR(), settings = this.getOutputSettings(), single_tags = this.getSingleTags();
 	
 	function convertToXhtml(json, parent_tag, indent) {
-		var xml = '', attributes = '', i, key, valid_key, sp, new_indent = indent + settings.indent;
+		var xml = '', attributes = '', i, key, valid_key, sp, new_indent = indent + settings.indent, has_text = false;
 		if (parent_tag === ':xml') {
 			new_indent = '';
 		}
@@ -204,6 +212,9 @@ JXR.prototype.getXML = function () {
 		}
 		for (key in json) {
 			if (json.hasOwnProperty(key)) {
+				if (json[key] === false) {
+					continue;
+				}
 				valid_key = key.toLowerCase().replace('$', ':');
 				sp = valid_key.indexOf(' ');
 				if (sp > -1) {
@@ -212,6 +223,7 @@ JXR.prototype.getXML = function () {
 				if (valid_key[0] === ':') {
 					if (valid_key === ':t' || valid_key === ':text') {
 						xml += json[key];
+						has_text = true;
 					} else if (valid_key === ':c' || valid_key === ':comment') {
 						xml += '<!-- ' + json[key] + ' -->';
 					} else if (valid_key === ':doctype') {
@@ -222,20 +234,28 @@ JXR.prototype.getXML = function () {
 					attributes += ' ' + valid_key + '="' + json[key] + '"';
 				} else if (json[key] instanceof Array) {
 					for (i = 0; i < json[key].length; i += 1) {
-						xml += settings.newline + convertToXhtml(json[key][i], valid_key, new_indent) + settings.newline + indent;
+						xml += settings.newline + convertToXhtml(json[key][i], valid_key, new_indent);
 					}
 				} else if (json[key] instanceof Object) {
-					xml += settings.newline + convertToXhtml(json[key], valid_key, new_indent) + settings.newline + indent;
+					xml += settings.newline + convertToXhtml(json[key], valid_key, new_indent);
 				}
 			}
 		}
 		if (parent_tag !== '') {
 			if (settings.checkSingleTags && single_tags.indexOf(parent_tag) > -1) {
 				xml = indent + '<' + parent_tag + attributes + '/>';
+			} else if (settings.isXML && settings.autoCloseTags && xml === '') {
+				xml = indent + '<' + parent_tag + attributes + '/>';
 			} else if (parent_tag === ':xml') {
 				xml = '<?xml' + attributes + ' ?>' + xml;
 			} else {
-				xml = indent + '<' + parent_tag + attributes + '>' + xml + '</' + parent_tag + '>';
+				if (settings.isXML && has_text && (xml.indexOf('<') > -1 || xml.indexOf('&') > -1)) {
+					xml = indent + '<' + parent_tag + attributes + '><![CDATA[' + xml + ']]></' + parent_tag + '>';
+				} else if (has_text) {
+					xml = indent + '<' + parent_tag + attributes + '>' + xml + '</' + parent_tag + '>';
+				} else {
+					xml = indent + '<' + parent_tag + attributes + '>' + xml + settings.newline + indent + '</' + parent_tag + '>';
+				}
 			}
 		}
 		return xml;
@@ -364,6 +384,6 @@ JXR.jsonpath = function (obj, expr, arg) {
    var $ = obj;
    if (expr && obj && (P.resultType == "VALUE" || P.resultType == "PATH")) {
       P.trace(P.normalize(expr).replace(/^\$;/,""), obj, "$");
-      return P.result.length ? P.result : [];
+      return P.result.length ? P.result : false;
    }
 };

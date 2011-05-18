@@ -1,6 +1,6 @@
 var tests = {
 	"xml": {
-		"options": {"isXML": true},
+		"options": {"isXML": true, "autoCloseTags": true},
 		"json": {
 			"version": "1.0",
 			"encoding": "UTF-8",
@@ -90,7 +90,7 @@ var tests = {
 			"$doctype": "HTML",
 			"html": {
 				"head": {"title": {"$t": "Testing JSON.toXML"}},
-				"body": {"div": {"$t": "Hello, World!"}, "hr": {}, "p": {"$t": "Hello, World!"}}
+				"body": {"div": {"$t": "Hello, World!"}, "hr": {}, "p": [{"$t": "Hello, World!"}, {"$t": "Hello, World2!"}]}
 			}
 		}
 	},
