@@ -4,19 +4,189 @@
  * 
  * @version 0.1.2
  * @author Daniel Zahariev
+ * @todo
+ *		- Add CDATA for pure XML
+ *		- If possible allow attributes next to $job
  */
 
-if (typeof (JXR) !== 'object') {
-	JXR = {};
+function JXR() {
+	var singleTags = ['area', 'base', 'basefont', 'br', 'col', 'frame', 'hr', 'img', 'input', 'link', 'meta', 'param'],
+		xr_data = {}, outputSettings = {"newline": "\n", "indent": "  ", "isXML": false, "checkSingleTags": true},
+		$this = this;
+	this.getSingleTags = function () {
+		return singleTags;
+	};
+	this.setSingleTags = function (single_tags) {
+		if (single_tags instanceof Array) {
+			singleTags = single_tags;
+		}
+		return this;
+	};
+	this.getXR = function () {
+		return xr_data;
+	};
+	this.setXR = function (data) {
+		xr_data = data;
+		return this;
+	};
+	this.getOutputSettings = function () {
+		return outputSettings;
+	};
+	this.setOutputSettings = function (new_settings) {
+		if ((new_settings instanceof Object) === false) {
+			return this;
+		}
+		var key;
+		for (key in outputSettings) {
+			if (new_settings.hasOwnProperty(key)) {
+				outputSettings[key] = new_settings[key];
+			}
+		}
+		return this;
+	};
+	
+	var JobManager = {
+		"$template": {},
+		"$dataset": {},
+		"$current_dataset": {},
+		"transform": function (template, data) {
+			return $this.transform(template, data);
+		},
+		"path": function (value) {
+			var data, i;
+			if (value instanceof Array) {
+				data = [];
+				for ( i = 0; i < value.length; i += 1) {
+					Array.prototype.push.apply(data, JobManager.path(value[i]));
+				}
+			} else if (typeof(value) === 'string') {
+				if (value[0] === '$') {
+					data = JXR.jsonpath(this.$dataset, value);
+				} else if (value[0] === '@') {
+					data = JXR.jsonpath(this.$current_dataset, '$' + value.substring(1));
+				} else if (value[0] === '!') {
+					if (value[1] === '@') {
+						data = JXR.jsonpath(this.$current_dataset, '$' + value.substring(2));
+					} else {
+						data = JXR.jsonpath(this.$dataset, '$' + value.substring(2));
+					}
+					data = (data.length > 0) ? data[0] : false;
+				} else {
+					data = value;
+				}
+			}
+			return data;
+		},
+		"value": function () {
+			var i, values = [];
+			for ( i = 0; i < arguments.length; i += 1) {
+				values[i] = this.transform(arguments[i]);
+			}
+			return values.join('');
+		},
+		"if": function (clause, true_tpl, false_tpl) {
+			if (clause instanceof Array && clause.length === 3) {
+				var rule = clause[0], valid = false, t_tpl = {}, f_tpl = {},
+					arg1 = this.transform(clause[1]),
+					arg2 = this.transform(clause[2]);
+				
+				if (typeof(true_tpl) === 'string' && this.$template.hasOwnProperty(true_tpl)) {
+					t_tpl = this.$template[true_tpl];
+				} else if (typeof(true_tpl) === 'object') {
+					t_tpl = true_tpl;
+				}
+				if (typeof(false_tpl) === 'string' && this.$template.hasOwnProperty(false_tpl)) {
+					f_tpl = this.$template[false_tpl];
+				} else if (typeof(false_tpl) === 'object') {
+					f_tpl = false_tpl;
+				}
+				if(arg1 instanceof Array) {
+					arg1 = (arg1.length === 0) ? false : arg1[0];
+				}
+				switch (rule) {
+					case 'eq': valid = (arg1 == arg2); break;
+					case 'gt': valid = (arg1 > arg2); break;
+					case 'gte': valid = (arg1 >= arg2); break;
+					case 'lt': valid = (arg1 < arg2); break;
+					case 'lte': valid = (arg1 <= arg2); break;
+					case 'match':
+						try{
+							valid = arg1.match(arg2);
+						}
+						catch(ex){}
+						break;
+				}
+				return this.transform(valid ? t_tpl : f_tpl);
+			}
+			return false;
+		},
+		"for": function (path, loop_tpl, else_tpl) {
+			var i, elements = JobManager.path(path), template = false, result = [];
+			if (elements.length > 0) {
+				if (typeof(loop_tpl) === 'string' && this.$template.hasOwnProperty(loop_tpl)) {
+					template = this.$template[loop_tpl];
+				} else if (loop_tpl instanceof Object) {
+					template = loop_tpl;
+				}
+				if (template !== false) {
+					for ( i = 0; i < elements.length; i += 1) {
+						this.$current_dataset = elements[i];
+						result[i] = this.transform(template);
+					}
+				}
+			} else {
+				if (typeof(else_tpl) === 'string' && this.$template.hasOwnProperty(else_tpl)) {
+					template = this.$template[else_tpl];
+				} else if (else_tpl instanceof Object) {
+					template = else_tpl;
+				}
+				if (template !== false) {
+					result = this.transform(template);
+				}
+			}
+			return result;
+		}
+	};
+	
+	this.setJobData = function (key, data) {
+		var data_keys = ['$template', '$dataset', '$current_dataset'];
+		if (typeof(key) === 'string' && data_keys.indexOf(key) > -1) {
+			JobManager[key] = data;
+			return true;
+		}
+		else {
+			return false;
+		}
+	};
+	this.setJobManager = function (name, callback) {
+		var key, added = false;
+		if (name instanceof Object) {
+			for (key in name) {
+				if (typeof(name[key]) === 'function' && JobManager.hasOwnProperty(key) === false) {
+					JobManager[key] = name[key];
+					added = true;
+				}
+			}
+		} else if (typeof(callback) === 'function' && JobManager.hasOwnProperty(name) === false) {
+			JobManager[name] = callback;
+			added = true;
+		}
+		return added;
+	};
+	this.manageJob = function (job, args) {
+		if (JobManager.hasOwnProperty(job)) {
+			return JobManager[job].apply(JobManager, args);
+		} else {
+			return false;
+		}
+	};
 }
-(function ($) {
-	var single_tags = ['area', 'base', 'basefont', 'br', 'col', 'frame', 'hr', 'img', 'input', 'link', 'meta', 'param'],
-		settings, defaultSettings = {
-			newline: '\n',
-			indent: '  ',
-			isXML: false,
-			checkSingleTags: true
-		};
+JXR.toXML = function (json, options) {
+	var obj = new JXR();
+	return obj.setXR(json).setOutputSettings(options).getXML();
+};
+JXR.prototype.getXML = function () {
+	var json = this.getXR(), settings = this.getOutputSettings(), single_tags = this.getSingleTags();
 	
 	function convertToXhtml(json, parent_tag, indent) {
 		var xml = '', attributes = '', i, key, valid_key, sp, new_indent = indent + settings.indent;
@@ -71,23 +241,129 @@ if (typeof (JXR) !== 'object') {
 		return xml;
 	}
 	
-	/**
-	 * Converts JSON object to XML string.
-	 * 
-	 * @param json object/array to convert
-	 * @param options additional parameters 
-	 * @return XML string 
-	 */
-	$.toXML = function (json, options) {
-		if ((options instanceof Object) === false) {
-			options = {};
+	return convertToXhtml(json, (settings.isXML ? ':xml' : ''), '');
+};
+JXR.prototype.transform = function (template, data) {
+	if (typeof(data) !== 'undefined') {
+		this.setJobData('$template', template);
+		this.setJobData('$dataset', data);
+		this.setJobData('$current_dataset', {});
+		if (template.hasOwnProperty("$main")) {
+			this.setXR(this.transform(template.$main));
+		} else {
+			this.setXR(this.transform(template));
 		}
-		settings = {};
-		var i;
-		for (i in defaultSettings) {
-			settings[i] = options.hasOwnProperty(i) ? options[i] : defaultSettings[i];
+		return this;
+	}
+	var result, key, i;
+	if (typeof(template) === 'string') {
+		return this.manageJob('path', [template]);
+	} else if (template instanceof Object && template.hasOwnProperty('$job')) {
+		if (template.$job instanceof Array && template.$job.length > 0) {
+			return this.manageJob(template.$job[0], template.$job.slice(1));
+		} else {
+			return false;
 		}
-		
-		return convertToXhtml(json, (settings.isXML ? ':xml' : ''), '');
-	};
-})(JXR);
+	} else if (template instanceof Array) {
+		result = [];
+		for ( i = 0; i < template.length; i += 1) {
+			result[i] = this.transform(template[i]);
+		}
+		return result;
+	} else if (template instanceof Object) {
+		result = {};
+		for (key in template) {
+			result[key] = this.transform(template[key]);
+		}
+		return result;
+	}
+	return template;
+};
+
+/* JSONPath 0.8.0 - XPath for JSON
+ *
+ * Copyright (c) 2007 Stefan Goessner (goessner.net)
+ * Licensed under the MIT (MIT-LICENSE.txt) licence.
+ */
+JXR.jsonpath = function (obj, expr, arg) {
+   var P = {
+      resultType: arg && arg.resultType || "VALUE",
+      result: [],
+      normalize: function(expr) {
+         var subx = [];
+         return expr.replace(/[\['](\??\(.*?\))[\]']/g, function($0,$1){return "[#"+(subx.push($1)-1)+"]";})
+                    .replace(/'?\.'?|\['?/g, ";")
+                    .replace(/;;;|;;/g, ";..;")
+                    .replace(/;$|'?\]|'$/g, "")
+                    .replace(/#([0-9]+)/g, function($0,$1){return subx[$1];});
+      },
+      asPath: function(path) {
+         var x = path.split(";"), p = "$";
+         for (var i=1,n=x.length; i<n; i++)
+            p += /^[0-9*]+$/.test(x[i]) ? ("["+x[i]+"]") : ("['"+x[i]+"']");
+         return p;
+      },
+      store: function(p, v) {
+         if (p) P.result[P.result.length] = P.resultType == "PATH" ? P.asPath(p) : v;
+         return !!p;
+      },
+      trace: function(expr, val, path) {
+         if (expr) {
+            var x = expr.split(";"), loc = x.shift();
+            x = x.join(";");
+            if (val && val.hasOwnProperty(loc))
+               P.trace(x, val[loc], path + ";" + loc);
+            else if (loc === "*")
+               P.walk(loc, x, val, path, function(m,l,x,v,p) { P.trace(m+";"+x,v,p); });
+            else if (loc === "..") {
+               P.trace(x, val, path);
+               P.walk(loc, x, val, path, function(m,l,x,v,p) { typeof v[m] === "object" && P.trace("..;"+x,v[m],p+";"+m); });
+            }
+            else if (/,/.test(loc)) { // [name1,name2,...]
+               for (var s=loc.split(/'?,'?/),i=0,n=s.length; i<n; i++)
+                  P.trace(s[i]+";"+x, val, path);
+            }
+            else if (/^\(.*?\)$/.test(loc)) // [(expr)]
+               P.trace(P.eval(loc, val, path.substr(path.lastIndexOf(";")+1))+";"+x, val, path);
+            else if (/^\?\(.*?\)$/.test(loc)) // [?(expr)]
+               P.walk(loc, x, val, path, function(m,l,x,v,p) { if (P.eval(l.replace(/^\?\((.*?)\)$/,"$1"),v[m],m)) P.trace(m+";"+x,v,p); });
+            else if (/^(-?[0-9]*):(-?[0-9]*):?([0-9]*)$/.test(loc)) // [start:end:step]  phyton slice syntax
+               P.slice(loc, x, val, path);
+         }
+         else
+            P.store(path, val);
+      },
+      walk: function(loc, expr, val, path, f) {
+         if (val instanceof Array) {
+            for (var i=0,n=val.length; i<n; i++)
+               if (i in val)
+                  f(i,loc,expr,val,path);
+         }
+         else if (typeof val === "object") {
+            for (var m in val)
+               if (val.hasOwnProperty(m))
+                  f(m,loc,expr,val,path);
+         }
+      },
+      slice: function(loc, expr, val, path) {
+         if (val instanceof Array) {
+            var len=val.length, start=0, end=len, step=1;
+            loc.replace(/^(-?[0-9]*):(-?[0-9]*):?(-?[0-9]*)$/g, function($0,$1,$2,$3){start=parseInt($1||start);end=parseInt($2||end);step=parseInt($3||step);});
+            start = (start < 0) ? Math.max(0,start+len) : Math.min(len,start);
+            end   = (end < 0)   ? Math.max(0,end+len)   : Math.min(len,end);
+            for (var i=start; i<end; i+=step)
+               P.trace(i+";"+expr, val, path);
+         }
+      },
+      eval: function(x, _v, _vname) {
+         try { return $ && _v && eval(x.replace(/@/g, "_v")); }
+         catch(e) { throw new SyntaxError("jsonPath: " + e.message + ": " + x.replace(/@/g, "_v").replace(/\^/g, "_a")); }
+      }
+   };
+
+   var $ = obj;
+   if (expr && obj && (P.resultType == "VALUE" || P.resultType == "PATH")) {
+      P.trace(P.normalize(expr).replace(/^\$;/,""), obj, "$");
+      return P.result.length ? P.result : [];
+   }
+};

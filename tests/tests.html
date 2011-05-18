@@ -14,7 +14,7 @@
 			dom["pre "+i] = {"id": i};
 			dom["hr "+i] = {};
 		}
-		document.body.innerHTML = JXR(dom);
+		document.body.innerHTML = JXR.toXML(dom);
 		for (i in results) {
 			document.getElementById(i).innerText = results[i];
 		}
