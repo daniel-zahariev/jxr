@@ -53,7 +53,7 @@ function JXR() {
 			return $this.transform(template, data);
 		},
 		"path": function (value) {
-			var data, i, tmp;
+			var data, i, tmp, tmp2;
 			if (value instanceof Array) {
 				data = [];
 				for ( i = 0; i < value.length; i += 1) {
@@ -68,12 +68,34 @@ function JXR() {
 				} else if (value[0] === '@') {
 					data = JXR.jsonpath(this.$current_dataset, '$' + value.substring(1));
 				} else if (value[0] === '!') {
-					if (value[1] === '@') {
-						data = JXR.jsonpath(this.$current_dataset, '$' + value.substring(2));
-					} else {
+					if (value[1] === '$') {
 						data = JXR.jsonpath(this.$dataset, '$' + value.substring(2));
+						if (data !== false) {
+							data = (data.length > 0) ? data[0] : false;
+						}
+					} else if (value[1] === '@') {
+						data = JXR.jsonpath(this.$current_dataset, '$' + value.substring(2));
+						if (data !== false) {
+							data = (data.length > 0) ? data[0] : false;
+						}
+					} else {
+						tmp = value.split('.');
+						tmp.shift();
+						tmp2 = this.$current_dataset;
+						for ( i = 0; i < tmp.length; i += 1) {
+							if (tmp2.hasOwnProperty(tmp[i])) {
+								tmp2 = tmp2[tmp[i]];
+							} else {
+								tmp = false;
+								break;
+							}
+						}
+						if (tmp === false) {
+							data = false;
+						} else {
+							data = tmp2;
+						}
 					}
-					data = (data.length > 0) ? data[0] : false;
 				} else {
 					data = value;
 				}
@@ -111,12 +133,15 @@ function JXR() {
 					arg1 = (arg1.length === 0) ? false : arg1[0];
 				}
 				switch (rule) {
+					case 'ne': valid = (arg1 != arg2); break;
 					case 'eq': valid = (arg1 == arg2); break;
 					case 'gt': valid = (arg1 > arg2); break;
 					case 'gte': valid = (arg1 >= arg2); break;
 					case 'lt': valid = (arg1 < arg2); break;
 					case 'lte': valid = (arg1 <= arg2); break;
 					case 'exist': valid = ((arg1 !== false) === arg2); break;
+					case 'in': valid = (arg2.indexOf(arg1) > -1); break;
+					case 'nin': valid = (arg2.indexOf(arg1) === -1); break;
 					case 'match':
 						try{
 							valid = arg1.match(arg2);
@@ -153,6 +178,22 @@ function JXR() {
 				}
 			}
 			return result;
+		},
+		"switch": function (path, default_tpl) {
+			var val = JobManager.path(path), template = false, i;
+			for (i = 2; i < arguments.length; i += 1) {
+				if (arguments[i] instanceof Array && arguments[i].length === 2 && val == arguments[i][0]) {
+					template = arguments[i][1];
+					break;
+				}
+			}
+			if (template === false) {
+				template = default_tpl;
+			}
+			if (typeof(template) === 'string' && this.$template.hasOwnProperty(template)) {
+				template = this.$template[template];
+			}
+			return this.transform(template);
 		}
 	};
 	
@@ -243,7 +284,11 @@ JXR.prototype.getXML = function () {
 		}
 		if (parent_tag !== '') {
 			if (settings.checkSingleTags && single_tags.indexOf(parent_tag) > -1) {
-				xml = indent + '<' + parent_tag + attributes + '/>';
+				if (attributes !== '') {
+					xml = indent + '<' + parent_tag + attributes + '/>';
+				} else {
+					xml = '';
+				}
 			} else if (settings.isXML && settings.autoCloseTags && xml === '') {
 				xml = indent + '<' + parent_tag + attributes + '/>';
 			} else if (parent_tag === ':xml') {
