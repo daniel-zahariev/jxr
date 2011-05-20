@@ -5,7 +5,6 @@
  * @version 0.1.2
  * @author Daniel Zahariev
  * @todo
- *		- Add CDATA for pure XML
  *		- If possible allow attributes next to $job
  */
 
